@@ -782,12 +782,12 @@ async function initUrbaMap(lat,lon){
       +'<div style="font-size:12px;margin:2px 0">'+(p.libelle||p.LIBELLE||'')+'</div>'
       +(p.destdomi?'<div style="font-size:11px;color:#8c97a4">'+p.destdomi+'</div>':'');
     // Lien vers le règlement PDF (fichier ou URL selon la propriété disponible)
-    const fic=p.nom_fic||p.nomfic||p.fichier||'';
-    const partition=p.partition||p.idurba||'';
-    if(fic){
-      // Le GPU expose les pièces écrites via son téléchargement direct
-      const url='https://www.geoportail-urbanisme.gouv.fr/document/download/'+encodeURIComponent(partition||'')+'/'+encodeURIComponent(fic);
-      h+='<a href="'+url+'" target="_blank" rel="noopener" style="display:inline-block;margin-top:5px;font-size:11px;color:#74b0d0;text-decoration:underline">📄 '+fic+'</a>';
+    const fic=p.nomfic||p.nom_fic||p.NOMFIC||p.fichier||'';
+    const partition=p.partition||p.PARTITION||p.idurba||'';
+    if(fic&&partition){
+      // Le GPU ne sert pas les PDF individuellement : téléchargement de la partition complète (zip)
+      const url='https://www.geoportail-urbanisme.gouv.fr/api/document/download-by-partition/'+encodeURIComponent(partition);
+      h+='<a href="'+url+'" target="_blank" rel="noopener" style="display:inline-block;margin-top:5px;font-size:11px;color:#74b0d0;text-decoration:underline">📄 '+fic+' (télécharger le dossier)</a>';
     } else if(p.nom_doc){
       h+='<div style="font-size:10px;color:#8c97a4;margin-top:3px">'+p.nom_doc+'</div>';
     }
