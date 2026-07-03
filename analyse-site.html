@@ -769,14 +769,6 @@ async function initUrbaMap(lat,lon){
   const sprL=L.tileLayer.wms(WMS,Object.assign({},wmsO,
     {layers:'SPR',opacity:.5,attribution:'© DRAC'}));
 
-  /* ── Bbox ────────────────────────────────────────────────────────── */
-  const R=0.004;
-  const b=[lon-R*1.5,lat-R,lon+R*1.5,lat+R];
-  const bbox=b.join(',');
-  const bboxCRS=bbox+',CRS:84';
-  const bboxGeom=encodeURIComponent(JSON.stringify({type:'Polygon',
-    coordinates:[[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]],[b[0],b[1]]]]}));
-
   /* ── Popup commune ───────────────────────────────────────────────── */
   function zoneHtml(p){
     const z=(p.libelle_zone||p.zone_urba||p.LIBELLE_ZONE||p.ZONE_URBA||p.typezone||'').trim();
@@ -832,13 +824,6 @@ async function initUrbaMap(lat,lon){
       });
     }
   }).addTo(_urbaMap);
-  fetch('https://apicarto.ign.fr/api/gpu/zone-urba?geom='+bboxGeom+'&_limit=80')
-    .then(r=>r.json()).then(j=>{
-      if(j.features&&j.features.length){
-        console.log('[PLU] props clé:',Object.keys(j.features[0].properties||{}).slice(0,10));
-        pluLayer.addData(j);
-      }
-    }).catch(e=>console.warn('[PLU]',e.message));
 
   /* ── Cadastre GeoJSON via WFS IGN ────────────────────────────────── */
   const cadLayer=L.geoJSON(null,{
@@ -871,25 +856,51 @@ async function initUrbaMap(lat,lon){
     }
   }).addTo(_urbaMap);
 
-  // WFS IGN (primaire) puis API Carto (repli)
-  const wfsCad='https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature'
-    +'&TYPENAMES=CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle'
-    +'&OUTPUTFORMAT=application/json&COUNT=400&BBOX='+bboxCRS;
-  fetch(wfsCad).then(r=>r.json()).then(j=>{
-    if(j.features&&j.features.length){
-      console.log('[Cadastre WFS]',j.features.length,'parcelles — props:',Object.keys(j.features[0].properties||{}).slice(0,10));
-      cadLayer.addData(j);return;
-    }
-    throw new Error('0 features WFS');
-  }).catch(()=>{
-    fetch('https://apicarto.ign.fr/api/cadastre/parcelle?bbox='+bbox+'&_limit=300')
-      .then(r=>r.json()).then(j2=>{
-        if(j2.features&&j2.features.length){
-          console.log('[Cadastre API]',j2.features.length,'parcelles — props:',Object.keys(j2.features[0].properties||{}).slice(0,10));
-          cadLayer.addData(j2);
-        }
-      }).catch(e=>console.warn('[Cadastre API]',e.message));
-  });
+  /* ── Chargement dynamique cadastre + PLU sur la vue courante ─────── */
+  const MAX_AREA_DEG2=0.05; // ~ au-delà on ne recharge pas (zoom trop large, requêtes trop lourdes)
+  function viewBbox(){
+    const bo=_urbaMap.getBounds();
+    const b2=[bo.getWest(),bo.getSouth(),bo.getEast(),bo.getNorth()];
+    return{arr:b2,str:b2.join(','),crs:b2.join(',')+',CRS:84',
+      geom:encodeURIComponent(JSON.stringify({type:'Polygon',
+        coordinates:[[[b2[0],b2[1]],[b2[2],b2[1]],[b2[2],b2[3]],[b2[0],b2[3]],[b2[0],b2[1]]]]}))};
+  }
+  function loadPLU(bx){
+    fetch('https://apicarto.ign.fr/api/gpu/zone-urba?geom='+bx.geom+'&_limit=200')
+      .then(r=>r.json()).then(j=>{
+        pluLayer.clearLayers();
+        if(j.features&&j.features.length)pluLayer.addData(j);
+      }).catch(e=>console.warn('[PLU]',e.message));
+  }
+  function loadCadastre(bx){
+    const wfsCad='https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature'
+      +'&TYPENAMES=CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle'
+      +'&OUTPUTFORMAT=application/json&COUNT=1500&BBOX='+bx.crs;
+    fetch(wfsCad).then(r=>r.json()).then(j=>{
+      if(j.features&&j.features.length){
+        cadLayer.clearLayers();cadLayer.addData(j);
+        console.log('[Cadastre WFS]',j.features.length,'parcelles');return;
+      }
+      throw new Error('0 features WFS');
+    }).catch(()=>{
+      fetch('https://apicarto.ign.fr/api/cadastre/parcelle?bbox='+bx.str+'&_limit=800')
+        .then(r=>r.json()).then(j2=>{
+          if(j2.features&&j2.features.length){
+            cadLayer.clearLayers();cadLayer.addData(j2);
+            console.log('[Cadastre API]',j2.features.length,'parcelles');
+          }
+        }).catch(e=>console.warn('[Cadastre API]',e.message));
+    });
+  }
+  function refreshUrbaLayers(){
+    const bx=viewBbox();
+    const area=(bx.arr[2]-bx.arr[0])*(bx.arr[3]-bx.arr[1]);
+    if(area>MAX_AREA_DEG2){cadLayer.clearLayers();pluLayer.clearLayers();return;}
+    loadPLU(bx);loadCadastre(bx);
+  }
+  refreshUrbaLayers();
+  let _moveT=null;
+  _urbaMap.on('moveend zoomend',()=>{clearTimeout(_moveT);_moveT=setTimeout(refreshUrbaLayers,350);});
 
   _geoLayers={plu:pluLayer,cad:cadLayer,ppri:ppri,spr:sprL};
 
