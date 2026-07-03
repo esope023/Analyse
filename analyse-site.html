@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analyse de site — fiche bioclimatique</title>
+<style>
+:root{
+  --bg:#0a0d12;--panel:rgba(16,20,26,.92);--line:#2a323d;--line-soft:#1e242d;
+  --text:#e9eef3;--muted:#8c97a4;--sun:#ffc24d;--cool:#74b0d0;
+  --ok:#7fc8a0;--warn:#e0a860;--bad:#e08a7a;--green:#4a8a40;
+  --sans:"Inter",system-ui,-apple-system,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px}
+
+/* ── HEADER ── */
+header{position:sticky;top:0;z-index:10;background:var(--panel);
+  backdrop-filter:blur(16px);border-bottom:1px solid var(--line);padding:12px 18px}
+.brand-row{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+.brand-row b{font-size:16px;font-weight:650}
+.brand-row span{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1.6px;color:var(--muted)}
+.search-row{display:flex;gap:8px}
+#addr{flex:1;background:#0c0f14;border:1px solid var(--line);color:var(--text);
+  border-radius:8px;padding:9px 12px;font-size:14px;font-family:var(--sans)}
+#addr:focus{outline:2px solid var(--cool);outline-offset:1px}
+.go{background:var(--sun);border:none;color:#241a05;font-weight:600;
+  border-radius:8px;padding:9px 18px;font-size:14px;cursor:pointer;font-family:var(--sans)}
+.go:hover{opacity:.88}
+#statusBar{margin-top:8px;font-size:12px;font-family:var(--mono);color:var(--muted);min-height:16px}
+#statusBar.ok{color:var(--ok)}#statusBar.err{color:var(--bad)}
+
+/* ── GRID ── */
+main{max-width:1280px;margin:0 auto;padding:20px 16px 60px;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px}
+.card.full{grid-column:1/-1}
+
+/* ── CARD ── */
+.card{background:rgba(16,20,26,.7);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.card-hd{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line-soft)}
+.card-hd .ico{font-size:16px}
+.card-hd h2{font-size:13px;font-weight:600}
+.card-hd .src{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--muted)}
+.card-body{padding:14px}
+
+/* ── SKELETON ── */
+.sk{display:flex;flex-direction:column;gap:8px}
+.sk-l{height:10px;border-radius:5px;background:linear-gradient(90deg,#1e242d 0%,#2a323d 50%,#1e242d 100%);
+  background-size:200% 100%;animation:shim 1.4s linear infinite}
+.sk-l.w75{width:75%}.sk-l.w50{width:50%}
+@keyframes shim{to{background-position:-200% 0}}
+
+/* ── KPI GRID ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-bottom:14px}
+.kpi{background:#0c0f14;border:1px solid var(--line-soft);border-radius:8px;padding:10px 10px 8px}
+.kpi .k{font-size:9.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)}
+.kpi .v{font-family:var(--mono);font-size:17px;font-weight:600;margin-top:4px;line-height:1.1}
+.kpi .u{font-size:9.5px;color:var(--muted)}
+
+/* ── RISK ROWS ── */
+.risk-list{display:flex;flex-direction:column;gap:6px}
+.risk-row{display:flex;align-items:center;justify-content:space-between;
+  padding:7px 10px;background:#0c0f14;border:1px solid var(--line-soft);border-radius:8px}
+.risk-row .lbl{font-size:12px}
+.pill{font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;font-family:var(--mono);white-space:nowrap}
+.pill.ok {background:rgba(127,200,160,.15);color:var(--ok);border:1px solid rgba(127,200,160,.4)}
+.pill.warn{background:rgba(224,168,96,.15);color:var(--warn);border:1px solid rgba(224,168,96,.4)}
+.pill.bad {background:rgba(224,138,122,.15);color:var(--bad);border:1px solid rgba(224,138,122,.4)}
+.pill.nd  {background:transparent;color:var(--muted);border:1px solid var(--line)}
+
+/* ── INFO ROWS ── */
+.info-rows{display:flex;flex-direction:column;gap:0}
+.ir{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;
+  border-bottom:1px solid var(--line-soft);gap:8px}
+.ir:last-child{border-bottom:none}
+.ir .lb{font-size:12px;color:var(--muted);flex-shrink:0}
+.ir .vl{font-size:12px;font-family:var(--mono);text-align:right}
+
+/* ── CHART ── */
+.ch-lbl{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin:14px 0 6px}
+.ch-wrap{position:relative;height:170px}
+
+/* ── WIND ROSE ── */
+.wr-section{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px}
+.wr-legend{display:flex;flex-direction:column;gap:5px;margin-top:4px}
+.leg{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--muted)}
+.sw{width:12px;height:12px;border-radius:3px;flex-shrink:0}
+
+/* ── PLU BADGE ── */
+.plu-zone{display:inline-block;font-family:var(--mono);font-size:30px;font-weight:700;
+  padding:8px 18px;border:2px solid var(--cool);border-radius:8px;color:var(--cool);margin-bottom:12px}
+
+/* ── MISC ── */
+.err-msg{color:var(--muted);font-size:12.5px;padding:10px 0;line-height:1.6}
+.src-note{font-size:10px;color:var(--muted);margin-top:10px;line-height:1.5}
+.src-note a{color:var(--cool);text-decoration:none}
+.src-note a:hover{text-decoration:underline}
+
+@media(max-width:600px){main{grid-template-columns:1fr}.card.full{grid-column:auto}}
+
+/* ── Leaflet dark theme ── */
+.leaflet-container{background:#161a22;font-family:var(--sans)}
+.leaflet-control-attribution{font-size:9px!important;background:rgba(10,13,18,.82)!important;color:#8c97a4!important;padding:2px 6px!important}
+.leaflet-control-attribution a{color:var(--cool)!important}
+.leaflet-popup-content-wrapper{background:#0d1118;border:1px solid #2a323d;color:var(--text);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.5)}
+.leaflet-popup-tip-container .leaflet-popup-tip{background:#0d1118}
+.leaflet-popup-close-button{color:#8c97a4!important}
+.leaflet-popup-content{margin:10px 14px;font-size:13px;line-height:1.5}
+.plu-tip{background:#0d1118;border:1px solid #2a323d;color:#e9eef3;font-size:12px;padding:4px 8px;border-radius:6px}
+.plu-tip::before{display:none}
+.leaflet-control-layers{background:#0d1118;border:1px solid #2a323d;border-radius:8px;color:var(--text);font-size:12px}
+.leaflet-control-layers label{padding:3px 2px;display:flex;align-items:center;gap:5px}
+.leaflet-control-zoom a{background:#0d1118;border-color:#2a323d;color:var(--text)}
+.leaflet-control-zoom a:hover{background:#1e242d}
+.leaflet-bar{border-color:#2a323d!important}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand-row" style="justify-content:space-between">
+    <div style="display:flex;align-items:baseline;gap:10px">
+      <b>Analyse de site</b><span>fiche bioclimatique</span>
+    </div>
+    <a id="heliLink" href="heliodon.html" style="font-size:12px;color:var(--cool);text-decoration:none;font-family:var(--mono);border:1px solid var(--line);border-radius:6px;padding:4px 10px">🌞&nbsp;Héliodon →</a>
+  </div>
+  <div class="search-row">
+    <input type="text" id="addr" value="Cours Julien, Marseille" placeholder="ex. 12 rue de la République, Marseille" autocomplete="off">
+    <button class="go" id="btnAnalyse">Analyser</button>
+  </div>
+  <div id="statusBar">Saisissez une adresse pour démarrer l'analyse.</div>
+</header>
+<main id="results"></main>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const results=$('results');
+const MONTHS=['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+const _charts={};
+
+function setStatus(msg,cls=''){const e=$('statusBar');e.textContent=msg;e.className=cls;}
+
+/* ── Squelette de chargement ── */
+function sk(){return`<div class="sk"><div class="sk-l"></div><div class="sk-l w75"></div><div class="sk-l w50"></div><div class="sk-l w75"></div><div class="sk-l w50"></div></div>`;}
+
+function createCard(id,ico,title,src='',full=false){
+  const c=document.createElement('div');
+  c.id='c-'+id;c.className='card'+(full?' full':'');
+  c.innerHTML=`<div class="card-hd"><span class="ico">${ico}</span><h2>${title}</h2><span class="src">${src}</span></div><div class="card-body">${sk()}</div>`;
+  results.appendChild(c);
+}
+function fillCard(id,html){const e=$('c-'+id);if(e)e.querySelector('.card-body').innerHTML=html;}
+
+/* ── Helpers HTML ── */
+const kpi=(k,v,u='')=>`<div class="kpi"><div class="k">${k}</div><div class="v">${v}<span class="u">${u?' '+u:''}</span></div></div>`;
+const riskRow=(lbl,lvl,txt)=>`<div class="risk-row"><span class="lbl">${lbl}</span><span class="pill ${lvl}">${txt}</span></div>`;
+const ir=(lb,vl)=>`<div class="ir"><span class="lb">${lb}</span><span class="vl">${vl}</span></div>`;
+const errMsg=msg=>`<div class="err-msg">⚠ ${msg}</div>`;
+
+/* ── Chart.js wrapper ── */
+function mkChart(id,cfg){
+  if(_charts[id])_charts[id].destroy();
+  const ctx=$(id);if(!ctx)return;
+  _charts[id]=new Chart(ctx,cfg);
+}
+const baseOpts={
+  responsive:true,maintainAspectRatio:false,
+  plugins:{legend:{labels:{color:'#8c97a4',boxWidth:12,font:{size:11}}}},
+  scales:{
+    x:{ticks:{color:'#8c97a4',font:{size:10}},grid:{color:'#1e242d'}},
+    y:{ticks:{color:'#8c97a4',font:{size:10}},grid:{color:'#1e242d'}}
+  }
+};
+
+/* ============================================================
+   1. GÉOCODAGE — BAN
+   ============================================================ */
+async function geocode(q){
+  const r=await fetch('https://api-adresse.data.gouv.fr/search/?limit=1&q='+encodeURIComponent(q));
+  if(!r.ok)throw new Error('BAN HTTP '+r.status);
+  const j=await r.json();
+  if(!j.features?.length)throw new Error('Adresse introuvable');
+  const f=j.features[0];
+  return{lon:f.geometry.coordinates[0],lat:f.geometry.coordinates[1],
+    label:f.properties.label,city:f.properties.city,
+    postcode:f.properties.postcode,context:f.properties.context};
+}
+
+/* ============================================================
+   2. OPEN-METEO — archive quotidienne 10 ans
+   ============================================================ */
+async function fetchClimate(lat,lon){
+  const url='https://archive-api.open-meteo.com/v1/archive'
+    +`?latitude=${lat}&longitude=${lon}`
+    +'&start_date=2014-01-01&end_date=2023-12-31'
+    +'&daily=temperature_2m_max,temperature_2m_min,temperature_2m_mean,'
+    +'precipitation_sum,et0_fao_evapotranspiration,'
+    +'wind_speed_10m_max,wind_direction_10m_dominant,shortwave_radiation_sum'
+    +'&timezone=auto&wind_speed_unit=ms';
+  const r=await fetch(url);if(!r.ok)throw new Error('Open-Meteo '+r.status);
+  const j=await r.json();if(!j.daily)throw new Error('Format Open-Meteo inattendu');
+  return j.daily;
+}
+
+function computeClimate(d){
+  const{time,temperature_2m_max:TX,temperature_2m_min:TN,temperature_2m_mean:TM,
+    precipitation_sum:PR,et0_fao_evapotranspiration:ET,
+    wind_speed_10m_max:WS,wind_direction_10m_dominant:WD,shortwave_radiation_sum:RD}=d;
+  const n=time.length;
+  const mTX=A(12),mTN=A(12),mTM=A(12),mPR=A(12),mET=A(12),mRD=A(12);
+  const WR=Array.from({length:16},()=>[0,0,0,0,0]);
+  let djuF=0,djuC=0,tn20=0,tx35=0,j25=0,j30=0,j33=0,tn25=0,calmN=0,windN=0;
+
+  for(let i=0;i<n;i++){
+    const m=new Date(time[i]).getMonth();
+    if(TX[i]!=null)mTX[m].push(TX[i]);
+    if(TN[i]!=null)mTN[m].push(TN[i]);
+    if(TM[i]!=null){
+      mTM[m].push(TM[i]);
+      if(TM[i]<18)djuF+=18-TM[i];
+      if(TM[i]>26)djuC+=TM[i]-26;
+    }
+    if(TN[i]!=null&&TN[i]>20)tn20++;
+    if(TN[i]!=null&&TN[i]>=25)tn25++;
+    if(TX[i]!=null){if(TX[i]>35)tx35++;if(TX[i]>=33)j33++;if(TX[i]>=30)j30++;if(TX[i]>=25)j25++;}
+    if(PR[i]!=null)mPR[m].push(PR[i]);
+    if(ET[i]!=null)mET[m].push(ET[i]);
+    if(RD[i]!=null)mRD[m].push(RD[i]);
+    const ws=WS[i],wd=WD[i];
+    if(ws!=null&&wd!=null){
+      windN++;
+      if(ws<1){calmN++;continue;}
+      const sect=Math.round(wd/22.5)%16;
+      let sb=4;
+      if(ws<2)sb=0;else if(ws<4)sb=1;else if(ws<7)sb=2;else if(ws<11)sb=3;
+      WR[sect][sb]++;
+    }
+  }
+  const yrs=n/365.25;
+  const av=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:null;
+  const sm=a=>a.reduce((s,v)=>s+v,0);
+  const monthly=Array.from({length:12},(_,m)=>({
+    tmax:av(mTX[m]),tmin:av(mTN[m]),tmean:av(mTM[m]),
+    prec:sm(mPR[m])/yrs,et0:sm(mET[m])/yrs,rad:av(mRD[m])
+  }));
+  const ann={
+    prec:Math.round(sm(mPR.map(a=>sm(a)))/yrs),
+    et0:Math.round(sm(mET.map(a=>sm(a)))/yrs),
+    djuFroid:Math.round(djuF/yrs),djuChaud:Math.round(djuC/yrs),
+    tn20:Math.round(tn20/yrs),tx35:Math.round(tx35/yrs),j25:Math.round(j25/yrs),j30:Math.round(j30/yrs),j33:Math.round(j33/yrs),tn25:Math.round(tn25/yrs),
+    tmaxMoy:av(mTX.flat()),tminMoy:av(mTN.flat())
+  };
+  return{monthly,annual:ann,windRose:WR,calmPct:windN?Math.round(calmN/windN*100):0};
+}
+function A(n){return Array.from({length:n},()=>[]);}
+
+/* ============================================================
+   3. PVGIS — potentiel solaire
+   ============================================================ */
+async function fetchSolar(lat,lon){
+  const r=await fetch(`https://re.jrc.ec.europa.eu/api/v5_2/PVcalc?lat=${lat}&lon=${lon}&peakpower=1&loss=14&outputformat=json`);
+  if(!r.ok)throw new Error('PVGIS '+r.status);
+  return r.json();
+}
+
+/* ============================================================
+   4. GÉORISQUES
+   ============================================================ */
+async function safeJ(url){
+  try{const r=await fetch(url);if(!r.ok)return null;return r.json();}catch{return null;}
+}
+async function fetchRisques(lat,lon){
+  const B='https://georisques.gouv.fr/api/v1';
+  const p=`lon=${lon}&lat=${lat}&page=1&page_size=1`;
+  const[radon,sisme,argile,ppr,icpe,sis]=await Promise.all([
+    safeJ(`${B}/radon?${p}`),
+    safeJ(`${B}/zonage_sismique?${p}`),
+    safeJ(`${B}/argiles?${p}`),
+    safeJ(`${B}/gaspar/risques?lon=${lon}&lat=${lat}&page=1&page_size=5`),
+    safeJ(`${B}/installations?lon=${lon}&lat=${lat}&rayon=1000&page=1&page_size=1`),
+    safeJ(`${B}/sis?lon=${lon}&lat=${lat}&rayon=500&page=1&page_size=1`),
+  ]);
+  return{radon,sisme,argile,ppr,icpe,sis};
+}
+
+/* ============================================================
+   5. API CARTO — GPU (PLU) + Patrimoine + Biodiversité
+   ============================================================ */
+async function fetchUrba(lat,lon){
+  const B='https://apicarto.ign.fr/api/gpu';
+  const[doc,zone,serv]=await Promise.all([
+    safeJ(`${B}/doc-urba?lon=${lon}&lat=${lat}&_limit=1`),
+    safeJ(`${B}/zone-urba?lon=${lon}&lat=${lat}&_limit=5`),
+    safeJ(`${B}/servitude?lon=${lon}&lat=${lat}&_limit=15`),
+  ]);
+  return{doc,zone,serv};
+}
+async function fetchBio(lat,lon){
+  const B='https://apicarto.ign.fr/api/nature';
+  const g=encodeURIComponent(JSON.stringify({type:'Point',coordinates:[lon,lat]}));
+  const[z1,z2,nat,natO]=await Promise.all([
+    safeJ(`${B}/znieff1?geom=${g}`),
+    safeJ(`${B}/znieff2?geom=${g}`),
+    safeJ(`${B}/natura-habitat?geom=${g}`),
+    safeJ(`${B}/natura-oiseaux?geom=${g}`),
+  ]);
+  return{z1,z2,nat,natO};
+}
+
+/* ============================================================
+   6. FRANCE CHALEUR URBAINE
+   ============================================================ */
+async function fetchEnergie(lat,lon){
+  return safeJ(`https://france-chaleur-urbaine.beta.gouv.fr/api/v1/network?lon=${lon}&lat=${lat}&limit=1`);
+}
+
+/* ============================================================
+   ROSE DES VENTS — SVG (16 secteurs, 5 classes de vitesse)
+   ============================================================ */
+const WR_COLORS=['#5ba8e0','#7fc8a0','#e0c84a','#e09040','#e05060'];
+const WR_LABELS=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO'];
+const WR_8=['N','NE','E','SE','S','SO','O','NO'];
+
+function buildWindRose(wr,calmPct){
+  const CX=130,CY=130,R=104,hw=Math.PI/16*0.84;
+  const total=wr.reduce((s,b)=>s+b.reduce((a,v)=>a+v,0),0)||1;
+  const sFreq=wr.map(b=>b.reduce((a,v)=>a+v,0));
+  const maxF=Math.max(...sFreq,1);
+  let svg=`<svg width="${CX*2}" height="${CY*2}" viewBox="0 0 ${CX*2} ${CY*2}" style="display:block;flex-shrink:0">`;
+  // Rings
+  [.25,.5,.75,1].forEach(f=>svg+=`<circle cx="${CX}" cy="${CY}" r="${(R*f).toFixed(1)}" fill="none" stroke="#2a323d" stroke-width=".8"/>`);
+  // Spokes
+  for(let d=0;d<16;d++){const a=(d*22.5-90)*Math.PI/180;svg+=`<line x1="${CX}" y1="${CY}" x2="${ff(CX+R*Math.cos(a))}" y2="${ff(CY+R*Math.sin(a))}" stroke="#2a323d" stroke-width=".6"/>`;}
+  // Pétales
+  for(let d=0;d<16;d++){
+    const a=(d*22.5-90)*Math.PI/180;let rI=0;
+    for(let s=0;s<5;s++){
+      const f=wr[d][s];if(!f)continue; // comptages bruts / max secteur
+      const rO=rI+(f/maxF)*R;
+      svg+=`<path d="${arcP(CX,CY,rI,rO,a-hw,a+hw)}" fill="${WR_COLORS[s]}" opacity=".88"/>`;
+      rI=rO;
+    }
+  }
+  // Labels cardinaux
+  for(let i=0;i<8;i++){
+    const a=(i*45-90)*Math.PI/180,r2=R+15;
+    const anc=Math.abs(Math.cos(a))<.1?'middle':Math.cos(a)>.0?'start':'end';
+    const dy=Math.sin(a)>.1?'1em':Math.sin(a)<-.1?'.1em':'.35em';
+    svg+=`<text x="${ff(CX+r2*Math.cos(a))}" y="${ff(CY+r2*Math.sin(a))}" text-anchor="${anc}" dy="${dy}" fill="${i===0?'#ffc24d':'#8c97a4'}" font-size="${i===0?'13':'11'}" font-family="monospace" font-weight="${i===0?700:400}">${WR_8[i]}</text>`;
+  }
+  // Calme au centre
+  svg+=`<text x="${CX}" y="${CY+5}" text-anchor="middle" fill="#8c97a4" font-size="9" font-family="monospace">calme ${calmPct}%</text>`;
+  svg+='</svg>';
+  return svg;
+}
+function arcP(cx,cy,r0,r1,a0,a1){
+  const c=Math.cos,s=Math.sin;
+  if(r0<.5)return`M${cx},${cy} L${ff(cx+r1*c(a0))},${ff(cy+r1*s(a0))} A${ff(r1)},${ff(r1)},0,0,1,${ff(cx+r1*c(a1))},${ff(cy+r1*s(a1))} Z`;
+  return`M${ff(cx+r0*c(a0))},${ff(cy+r0*s(a0))} L${ff(cx+r1*c(a0))},${ff(cy+r1*s(a0))} A${ff(r1)},${ff(r1)},0,0,1,${ff(cx+r1*c(a1))},${ff(cy+r1*s(a1))} L${ff(cx+r0*c(a1))},${ff(cy+r0*s(a1))} A${ff(r0)},${ff(r0)},0,0,0,${ff(cx+r0*c(a0))},${ff(cy+r0*s(a0))} Z`;
+}
+const ff=v=>v.toFixed(2);
+
+/* ============================================================
+   RENDU DES CARDS
+   ============================================================ */
+function renderLoc(g){
+  return`<div class="info-rows">
+    ${ir('Adresse géocodée',g.label)}
+    ${ir('Coordonnées',`${g.lat.toFixed(5)}° N &nbsp; ${g.lon.toFixed(5)}° E`)}
+    ${ir('Contexte administratif',g.context||'—')}
+  </div>`;
+}
+
+function renderVent(st){
+  const{monthly:M,annual:A,windRose:WR,calmPct}=st;
+  const sFreq=WR.map(b=>b.reduce((a,v)=>a+v,0));
+  const domSect=sFreq.indexOf(Math.max(...sFreq));
+  const tMoyAnn=A.tmaxMoy!=null&&A.tminMoy!=null?((A.tmaxMoy+A.tminMoy)/2).toFixed(1):'—';
+  return`
+    <div class="kpi-grid">
+      ${kpi('T° moy. annuelle',tMoyAnn,'°C')}
+      ${kpi('Précipitations',A.prec,'mm/an')}
+      ${kpi('ET₀ annuelle',A.et0,'mm/an')}
+      ${kpi('DJU chauffage',A.djuFroid,'base 18°C')}
+      ${kpi('DJU refroid.',A.djuChaud,'base 26°C')}
+      ${kpi('Jours chauds TX≥25°',A.j25,'j/an')}
+      ${kpi('Jours très chauds TX≥30°',A.j30,'j/an')}
+      ${kpi('Jours canicule TX≥33°',A.j33,'j/an')}
+      ${kpi('Nuits tropicales TN≥20°',A.tn20,'j/an')}
+      ${kpi('Nuits canicule TN≥25°',A.tn25,'j/an')}
+      ${kpi('Vent dominant',WR_LABELS[domSect],'')}
+    </div>
+    <div class="wr-section">
+      ${buildWindRose(WR,calmPct)}
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
+          Direction dom. : <b style="color:var(--text)">${WR_LABELS[domSect]}</b> &nbsp;·&nbsp; Calmes : ${calmPct}%
+        </div>
+        <div class="wr-legend">
+          ${['0–2 m/s — calme','2–4 m/s — légère brise','4–7 m/s — brise modérée','7–11 m/s — bonne brise','>11 m/s — grand vent']
+            .map((l,i)=>`<div class="leg"><div class="sw" style="background:${WR_COLORS[i]}"></div>${l}</div>`).join('')}
+        </div>
+        <div class="src-note" style="margin-top:12px">Open-Meteo ERA5 · 2014–2023<br>Direction dominante quotidienne</div>
+      </div>
+    </div>
+    <div class="ch-lbl">Températures mensuelles (°C) — normales 2014–2023</div>
+    <div class="ch-wrap"><canvas id="chtTemp"></canvas></div>
+    <div class="ch-lbl">Bilan hydrique mensuel (mm)</div>
+    <div class="ch-wrap"><canvas id="chtBilan"></canvas></div>`;
+}
+
+function initVentCharts(st){
+  const M=st.monthly;
+  const grd={color:'#1e242d'},tk={color:'#8c97a4',font:{size:10}};
+  mkChart('chtTemp',{type:'line',data:{labels:MONTHS,datasets:[
+    {label:'T° max',data:M.map(m=>m.tmax?.toFixed(1)),borderColor:'#e08a7a',backgroundColor:'transparent',tension:.4,pointRadius:3},
+    {label:'T° moy',data:M.map(m=>m.tmean?.toFixed(1)),borderColor:'#74b0d0',backgroundColor:'transparent',tension:.4,pointRadius:3},
+    {label:'T° min',data:M.map(m=>m.tmin?.toFixed(1)),borderColor:'#5ba8e0',backgroundColor:'transparent',tension:.4,pointRadius:3},
+  ]},options:{...baseOpts,scales:{x:{ticks:tk,grid:grd},y:{ticks:{...tk,callback:v=>v+'°'},grid:grd}}}});
+
+  mkChart('chtBilan',{type:'bar',data:{labels:MONTHS,datasets:[
+    {label:'Précipitations (mm)',data:M.map(m=>m.prec?.toFixed(0)),backgroundColor:'rgba(116,176,208,.55)',borderColor:'rgba(116,176,208,1)',borderWidth:1},
+    {label:'ET₀ (mm)',data:M.map(m=>m.et0?.toFixed(0)),backgroundColor:'rgba(224,168,96,.5)',borderColor:'rgba(224,168,96,1)',borderWidth:1},
+  ]},options:{...baseOpts,scales:{x:{ticks:tk,grid:grd},y:{ticks:tk,grid:grd}}}});
+}
+
+function renderSolar(pv){
+  const tot=pv?.outputs?.totals?.fixed||{};
+  const mo=pv?.outputs?.monthly?.fixed||[];
+  const Hhy=(tot['Hh_y']||0).toFixed(0);
+  const Hiy=(tot['H(i)_y']||0).toFixed(0);
+  const Ey=(tot['E_y']||0).toFixed(0);
+  const elev=pv?.meta?.location?.elevation??'—';
+  return`
+    <div class="kpi-grid">
+      ${kpi('Irradiation horiz.',Hhy,'kWh/m²/an')}
+      ${kpi('Irradiation incl. opt.',Hiy,'kWh/m²/an')}
+      ${kpi('Productible PV',Ey,'kWh/kWc/an')}
+      ${kpi('Altitude',elev,'m')}
+    </div>
+    <div class="ch-lbl">Irradiation mensuelle — inclinaison optimale (kWh/m²)</div>
+    <div class="ch-wrap"><canvas id="chtSolar"></canvas></div>
+    <div class="src-note">PVGIS-SARAH2 · système 1 kWc fixe · pertes 14% · <a href="https://re.jrc.ec.europa.eu/pvg_tools/fr/" target="_blank">PVGIS</a></div>`;
+}
+function initSolarChart(pv){
+  const mo=pv?.outputs?.monthly?.fixed||[];
+  const grd={color:'#1e242d'},tk={color:'#8c97a4',font:{size:10}};
+  mkChart('chtSolar',{type:'bar',data:{labels:MONTHS,datasets:[
+    {label:'Irradiation opt. (kWh/m²)',data:mo.map(m=>(m['H(i)_m']||0).toFixed(0)),backgroundColor:'rgba(255,194,77,.6)',borderColor:'rgba(255,194,77,1)',borderWidth:1},
+    {label:'Production PV (kWh/kWc)',data:mo.map(m=>(m['E_m']||0).toFixed(0)),backgroundColor:'rgba(91,168,224,.45)',borderColor:'rgba(91,168,224,1)',borderWidth:1},
+  ]},options:{...baseOpts,scales:{x:{ticks:tk,grid:grd},y:{ticks:tk,grid:grd}}}});
+}
+
+function renderRisques(d){
+  const g=(obj,...keys)=>{const o=obj?.data?.[0];if(!o)return null;for(const k of keys)if(o[k]!=null)return String(o[k]);return null;};
+  const radon=g(d.radon,'potentiel_radon','classeRn','classe_potentiel');
+  const rLvl=radon==='1'?'ok':radon==='2'?'warn':radon?'bad':'nd';
+  const sis=g(d.sisme,'zone_sismicite','zone','niveau');
+  const sLvl=!sis?'nd':parseInt(sis)<=2?'ok':parseInt(sis)===3?'warn':'bad';
+  const arg=g(d.argile,'alea_argiles','alea','niveau_alea');
+  const aLvl=!arg?'nd':arg.includes('Nul')||arg.includes('Faible')?'ok':arg.includes('Moyen')?'warn':'bad';
+  const pprT=d.ppr?.total??null;
+  const pLvl=pprT===null?'nd':pprT===0?'ok':'warn';
+  const icpeT=d.icpe?.total??null;
+  const iLvl=icpeT===null?'nd':icpeT===0?'ok':icpeT<3?'warn':'bad';
+  const sisT=d.sis?.total??null;
+  const ssLvl=sisT===null?'nd':sisT===0?'ok':'warn';
+  return`
+    <div class="risk-list">
+      ${riskRow('Potentiel radon',rLvl,radon?'Classe '+radon:'N/D')}
+      ${riskRow('Zonage sismique',sLvl,sis?'Zone '+sis:'N/D')}
+      ${riskRow('Retrait-gonflement argiles',aLvl,arg||'N/D')}
+      ${riskRow('Plans de prévention des risques',pLvl,pprT!==null?pprT+' PPR':'N/D')}
+      ${riskRow('ICPE à 1 km',iLvl,icpeT!==null?icpeT+' établissement(s)':'N/D')}
+      ${riskRow('Sites sol pollués SIS à 500 m',ssLvl,sisT!==null?sisT+' site(s)':'N/D')}
+    </div>
+    <div class="src-note">Source : <a href="https://georisques.gouv.fr" target="_blank">Géorisques</a> / BRGM</div>`;
+}
+
+function renderUrba(d){
+  const doc=d.doc?.features?.[0]?.properties;
+  const zones=d.zone?.features||[];
+  const servs=d.serv?.features||[];
+  const zoneCode=zones[0]?.properties?.libelle_zone||zones[0]?.properties?.zone_urba||'—';
+  const zoneLib=zones[0]?.properties?.libelle||'';
+  const srvPatri=servs.filter(s=>/abf|spr|mh|monument|patrimoin|zppaup|avap/i.test(JSON.stringify(s.properties)));
+  const srvInond=servs.filter(s=>/inond|ppri|ppr/i.test(JSON.stringify(s.properties)));
+
+  let infoHTML='';
+  if(!doc&&!zones.length){
+    infoHTML=`<div class="err-msg" style="margin-bottom:10px">
+      Données PLU non chargées via API Carto (migration Géoplateforme en cours).<br>
+      <b>Cliquer sur la carte</b> pour identifier la zone PLU.
+    </div>`;
+  } else {
+    infoHTML=`
+      <div class="plu-zone">${zoneCode}</div>
+      ${zoneLib?`<div style="font-size:12px;color:var(--muted);margin-bottom:10px">${zoneLib}</div>`:''}
+      <div class="info-rows">
+        ${ir('Document',doc?.typedoc||'—')}
+        ${ir('Nom',doc?.nom||'—')}
+        ${ir('Approbation',doc?.datappro||doc?.dateappro||'—')}
+        ${ir('Servitudes patrimoine',srvPatri.length?srvPatri.length+' détectée(s)':'Aucune')}
+        ${ir('Servitudes inondation',srvInond.length?srvInond.length+' détectée(s)':'Aucune')}
+      </div>`;
+  }
+
+  return infoHTML+`
+    <div class="ch-lbl" style="margin-top:14px">🗺️ Carte PLU, Cadastre & Patrimoine</div>
+    <div style="font-size:10.5px;color:var(--muted);margin-bottom:6px;line-height:1.4">
+      📐 Cliquer sur une parcelle = surface + zone PLU · Opacité des calques ajustable ci-dessous
+    </div>
+    <div id="urba-map" style="height:540px;border-radius:10px;border:1px solid var(--line);overflow:hidden"></div>
+    <div id="urba-opacity" style="margin-top:4px"></div>
+    <div class="src-note" style="margin-top:6px">
+      WMS : <a href="https://data.geopf.fr" target="_blank">IGN Géoplateforme</a> ·
+      <a href="https://www.geoportail-urbanisme.gouv.fr" target="_blank">GPU</a> ·
+      <a href="https://atlas.patrimoines.culture.fr" target="_blank">Atlas patrimoines</a>
+    </div>`;
+}
+
+
+function renderBio(d){
+  const z1=d.z1?.features||[],z2=d.z2?.features||[];
+  const nat=d.nat?.features||[],natO=d.natO?.features||[];
+  const lvl=n=>n===0?'ok':'warn';
+  return`
+    <div class="risk-list">
+      ${riskRow('ZNIEFF type I (périmètre)',lvl(z1.length),z1.length?z1.length+' zone(s)':'Aucune')}
+      ${riskRow('ZNIEFF type II (périmètre)',lvl(z2.length),z2.length?z2.length+' zone(s)':'Aucune')}
+      ${riskRow('Natura 2000 Habitats',lvl(nat.length),nat.length?nat.length+' site(s)':'Aucun')}
+      ${riskRow('Natura 2000 Oiseaux',lvl(natO.length),natO.length?natO.length+' site(s)':'Aucun')}
+    </div>
+    ${z1.length?`<div style="margin-top:8px;font-size:11px;color:var(--muted)">${z1.slice(0,2).map(f=>f.properties?.nom_znieff||'').filter(Boolean).join(' · ')}</div>`:''}
+    <div class="src-note">INPN / API Carto IGN · point exact du projet</div>`;
+}
+
+function renderEnergie(d){
+  const nets=Array.isArray(d)?d:(d?.networks||d?.data||[]);
+  if(!nets.length)return`<div class="err-msg">Aucun réseau de chaleur urbain détecté à proximité.<br>
+    <a href="https://france-chaleur-urbaine.beta.gouv.fr" target="_blank">france-chaleur-urbaine.beta.gouv.fr</a></div>`;
+  const n=nets[0];
+  const dist=n.distance_m!=null?Math.round(n.distance_m)+' m':'—';
+  const enr=n.tauxENRR??n.taux_enr??'—';
+  return`
+    <div class="kpi-grid">
+      ${kpi('Distance réseau',dist,'')}
+      ${kpi('Taux EnR&R',enr!=='—'?enr+'%':'—','')}
+    </div>
+    <div class="info-rows">
+      ${ir('Nom du réseau',n['Réseau']||n.nom||n.name||'—')}
+      ${ir('Gestionnaire',n.Gestionnaire||n.gestionnaire||'—')}
+      ${ir('Énergie principale',n['Énergie primaire réseau']||n.energie||'—')}
+    </div>
+    <div class="src-note"><a href="https://france-chaleur-urbaine.beta.gouv.fr" target="_blank">France Chaleur Urbaine</a></div>`;
+}
+
+/* ============================================================
+   ORCHESTRATEUR PRINCIPAL
+   ============================================================ */
+async function analyse(){
+  // Lien héliodon robuste dès la saisie (au cas où le géocodage échoue en file://)
+  {const q0=$('addr').value.trim();const hl0=document.getElementById('heliLink');
+   if(hl0&&q0)hl0.href='heliodon.html?addr='+encodeURIComponent(q0);}
+  const q=$('addr').value.trim();if(!q)return;
+  setStatus('Géocodage…');results.innerHTML='';
+
+  createCard('loc','📍','Localisation','BAN');
+  createCard('vent','🌬️','Vent & Climat','Open-Meteo ERA5 · 2014–2023',true);
+  createCard('solar','☀️','Potentiel solaire','PVGIS-SARAH2 / JRC');
+  createCard('risques','⚠️','Risques naturels & technologiques','Géorisques / BRGM');
+  createCard('urba','🏛️','Urbanisme & Patrimoine','GPU / API Carto IGN',true); // pleine largeur
+  createCard('bio','🌿','Biodiversité','INPN / API Carto IGN');
+  createCard('energie','🔥','Réseaux d\'énergie','France Chaleur Urbaine');
+
+  let geo;
+  try{
+    geo=await geocode(q);
+    fillCard('loc',renderLoc(geo));
+    setStatus(`${geo.label} — ${geo.lat.toFixed(5)}°N, ${geo.lon.toFixed(5)}°E`,'ok');
+    // Partage de l'adresse vers l'héliodon (localStorage + lien direct)
+    try{
+      localStorage.setItem('helio_addr',q);
+      localStorage.setItem('helio_lat',String(geo.lat));
+      localStorage.setItem('helio_lon',String(geo.lon));
+    }catch(_){}
+    const hl=document.getElementById('heliLink');
+    if(hl)hl.href='heliodon.html?addr='+encodeURIComponent(q)+'&lat='+geo.lat+'&lon='+geo.lon;
+  }catch(e){
+    setStatus('Géocodage impossible : '+e.message,'err');
+    results.innerHTML='';return;
+  }
+  const{lat,lon}=geo;
+
+  // ─ Climat (critique : on attend le résultat pour les charts)
+  fetchClimate(lat,lon).then(async daily=>{
+    const st=computeClimate(daily);
+    fillCard('vent',renderVent(st));
+    requestAnimationFrame(()=>initVentCharts(st));
+    try{
+      const fut=await fetchClimateFuture(lat,lon);
+      const stF=computeClimate(fut);
+      // Vérifier que les projections ont du sens (au moins une T° calculée)
+      if(stF&&stF.annual&&stF.annual.j25!=null){
+        appendProjections(st,stF);
+      }else{
+        appendProjErr('Projections : données du modèle CMIP6 incomplètes.');
+      }
+    }catch(err){
+      console.warn('[projections 2050]',err.message);
+      appendProjErr('Projections 2050 indisponibles ('+err.message+').');
+    }
+  }).catch(()=>fillCard('vent',errMsg('Open-Meteo indisponible')));
+
+  // ─ Solaire
+  fetchSolar(lat,lon).then(pv=>{
+    fillCard('solar',renderSolar(pv));
+    requestAnimationFrame(()=>initSolarChart(pv));
+  }).catch(()=>fillCard('solar',errMsg('PVGIS indisponible')));
+
+  // ─ Risques
+  fetchRisques(lat,lon).then(d=>fillCard('risques',renderRisques(d)))
+    .catch(()=>fillCard('risques',errMsg('Géorisques indisponible')));
+
+  // ─ PLU + Patrimoine
+  fetchUrba(lat,lon).then(d=>{
+    fillCard('urba',renderUrba(d));
+    requestAnimationFrame(()=>initUrbaMap(lat,lon));
+  }).catch(()=>{
+    fillCard('urba',renderUrba({doc:null,zone:{features:[]},serv:{features:[]}}));
+    requestAnimationFrame(()=>initUrbaMap(lat,lon));
+  });
+
+  // ─ Biodiversité
+  fetchBio(lat,lon).then(d=>fillCard('bio',renderBio(d)))
+    .catch(()=>fillCard('bio',errMsg('INPN / API Carto indisponible')));
+
+  // ─ Énergie
+  fetchEnergie(lat,lon).then(d=>fillCard('energie',renderEnergie(d)))
+    .catch(()=>fillCard('energie',errMsg('France Chaleur Urbaine indisponible')));
+}
+
+/* ── Projections climatiques 2050 ── */
+async function fetchClimateFuture(lat,lon){
+  // Cache localStorage 7 jours — évite les HTTP 429 de l'API CMIP6
+  const ck='proj2040_'+lat.toFixed(2)+'_'+lon.toFixed(2);
+  try{
+    const cached=localStorage.getItem(ck);
+    if(cached){const p=JSON.parse(cached);
+      if(Date.now()-p.ts<7*24*3600*1000){console.log('[climat 2040] cache hit');return p.d;}}
+  }catch(_){}
+  // CMIP6 downscalé 10km · 2030-2049 (limite API = 2050)
+  const models=['MRI_AGCM3_2_S','EC_Earth3P_HR','CMCC_ESM2'];
+  for(const model of models){
+    const url='https://climate-api.open-meteo.com/v1/climate'
+      +'?latitude='+lat+'&longitude='+lon
+      +'&start_date=2030-01-01&end_date=2049-12-31'
+      +'&models='+model
+      +'&daily=temperature_2m_max,temperature_2m_min,temperature_2m_mean,precipitation_sum';
+    try{
+      const r=await fetch(url);
+      if(r.status===429){console.warn('[climat 2040] 429 sur',model,'→ modèle suivant');continue;}
+      if(!r.ok)continue;
+      const j=await r.json();if(!j.daily)continue;
+      console.log('[climat 2040]',model,j.daily.time?.length,'jours');
+      try{localStorage.setItem(ck,JSON.stringify({ts:Date.now(),d:j.daily}));}catch(_){}
+      return j.daily;
+    }catch(_){continue;}
+  }
+  throw new Error('Tous les modèles CMIP6 indisponibles (429 ou erreur réseau)');
+}
+
+function appendProjErr(msg){
+  const c=$('c-vent');if(!c)return;
+  const div=document.createElement('div');
+  div.style.cssText='margin-top:16px;padding-top:12px;border-top:1px solid var(--line-soft)';
+  div.innerHTML='<div class="ch-lbl" style="margin-top:0">⚡ Projections 2050</div>'
+    +'<div style="font-size:11.5px;color:var(--muted);line-height:1.5">'+msg
+    +'<br>Sources de repli : <a href="https://drias-climat.fr" target="_blank" style="color:var(--cool)">DRIAS-Climat</a> · '
+    +'<a href="https://meteofrance.com/climadiag" target="_blank" style="color:var(--cool)">ClimadiagMF</a></div>';
+  c.querySelector('.card-body').appendChild(div);
+}
+
+function appendProjections(now,fut){
+  const A=now.annual,F=fut.annual;
+  const dlt=(a,b)=>{const d=b-a;return `<small style="color:${d>0?'var(--bad)':'var(--ok)'}">${d>0?'+':''}${Math.round(d)}</small>`;};
+  const rw=(lb,vN,vF,u)=>`<div class="ir">
+    <span class="lb">${lb}</span>
+    <span class="vl" style="display:flex;gap:8px">
+      <span style="color:var(--muted)">${vN} ${u}</span>
+      <span>→ ${vF} ${u} ${dlt(vN,vF)}</span>
+    </span></div>`;
+
+  const html=`<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--line-soft)">
+    <div class="ch-lbl" style="margin-top:0">⚡ Projections climatiques · horizon 2040 (2030-2049)</div>
+    <div style="font-size:10.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">
+      Comparaison référence 2014–2023 → moyenne 2030-2049 (CMIP6 downscalé). Indicateur prescriptif — ne remplace pas une étude Météo France (DRIAS / ClimadiagMF).
+    </div>
+    <div class="info-rows">
+      ${rw('Jours chauds TX≥25°C',A.j25,F.j25,'j/an')}
+      ${rw('Jours très chauds TX≥30°C',A.j30,F.j30,'j/an')}
+      ${rw('Jours canicule TX≥33°C',A.j33,F.j33,'j/an')}
+      ${rw('Nuits tropicales TN≥20°C',A.tn20,F.tn20,'j/an')}
+      ${rw('Nuits canicule TN≥25°C',A.tn25,F.tn25,'j/an')}
+      ${rw('DJU chauffage 18°',A.djuFroid,F.djuFroid,'DJ')}
+      ${rw('Précipitations',A.prec,F.prec,'mm/an')}
+    </div>
+    <div class="src-note" style="margin-top:8px">
+      CMIP6 via <a href="https://open-meteo.com/en/docs/climate-api" target="_blank">Open-Meteo</a> ·
+      <a href="https://drias-climat.fr" target="_blank">DRIAS-Climat</a> ·
+      <a href="https://meteofrance.com/climadiag" target="_blank">ClimadiagMF</a>
+    </div></div>`;
+  const c=$('c-vent');if(c)c.querySelector('.card-body').insertAdjacentHTML('beforeend',html);
+}
+
+/* ── Carte Leaflet Urbanisme ── */
+let _urbaMap=null,_geoLayers={};
+
+/* Couleurs PLU — basées sur le premier caractère du code zone */
+function pluFill(z){
+  if(!z||!String(z).trim())return'rgba(0,0,0,0)';
+  const u=String(z).trim().toUpperCase();
+  const c=u[0];
+  if(c==='U')return'#FFD94D';        // Zones urbaines   → jaune
+  if(c==='A'){
+    if(u.startsWith('AU')||u.match(/^\dAU/))return'#FF7070'; // À urbaniser → rouge
+    return'#F0E090';                 // Agricole         → beige
+  }
+  if(c==='N')return'#78C878';        // Naturel          → vert
+  if(c==='Z')return'#88BBFF';        // Zones spéciales  → bleu (ports, etc.)
+  return'#C080FF';                   // Inconnu          → violet (debug visible)
+}
+
+async function initUrbaMap(lat,lon){
+  if(_urbaMap){_urbaMap.remove();_urbaMap=null;}
+  const el=document.getElementById('urba-map');
+  if(!el||typeof L==='undefined')return;
+  _urbaMap=L.map('urba-map',{zoomControl:true}).setView([lat,lon],17);
+
+  /* ── Fonds de plan ───────────────────────────────────────────────── */
+  const mkT=(layer,fmt)=>L.tileLayer(
+    'https://data.geopf.fr/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile'+
+    '&LAYER='+layer+'&STYLE=normal&FORMAT=image/'+fmt+
+    '&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}',
+    {attribution:'© IGN',maxZoom:21,maxNativeZoom:20});
+  const ortho=mkT('ORTHOIMAGERY.ORTHOPHOTOS','jpeg');
+  const plan=mkT('GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2','png');
+  const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {attribution:'© OpenStreetMap',maxZoom:19});
+  ortho.addTo(_urbaMap);
+
+  /* ── Panes ───────────────────────────────────────────────────────── */
+  _urbaMap.createPane('wmsOver');
+  _urbaMap.getPane('wmsOver').style.cssText='z-index:420;pointer-events:none';
+  _urbaMap.createPane('geoOver');
+  _urbaMap.getPane('geoOver').style.zIndex=460;
+
+  /* ── WMS PPR / SPR (non interactifs) ─────────────────────────────── */
+  const WMS='https://data.geopf.fr/wms/ows';
+  const wmsO={version:'1.3.0',format:'image/png',transparent:true,pane:'wmsOver',maxZoom:22};
+  const ppri=L.tileLayer.wms(WMS,Object.assign({},wmsO,
+    {layers:'URBANISML_PLU.ZONE_ALEA',opacity:.6,attribution:'© GPU'}));
+  const sprL=L.tileLayer.wms(WMS,Object.assign({},wmsO,
+    {layers:'SPR',opacity:.5,attribution:'© DRAC'}));
+
+  /* ── Bbox ────────────────────────────────────────────────────────── */
+  const R=0.004;
+  const b=[lon-R*1.5,lat-R,lon+R*1.5,lat+R];
+  const bbox=b.join(',');
+  const bboxCRS=bbox+',CRS:84';
+  const bboxGeom=encodeURIComponent(JSON.stringify({type:'Polygon',
+    coordinates:[[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]],[b[0],b[1]]]]}));
+
+  /* ── Popup commune ───────────────────────────────────────────────── */
+  function zoneHtml(p){
+    const z=(p.libelle_zone||p.zone_urba||p.LIBELLE_ZONE||p.ZONE_URBA||p.typezone||'').trim();
+    let h='<div style="font-size:20px;font-weight:700;color:#ffc24d;font-family:monospace">'+(z||'?')+'</div>'
+      +'<div style="font-size:12px;margin:2px 0">'+(p.libelle||p.LIBELLE||'')+'</div>'
+      +(p.destdomi?'<div style="font-size:11px;color:#8c97a4">'+p.destdomi+'</div>':'');
+    // Lien vers le règlement PDF (fichier ou URL selon la propriété disponible)
+    const fic=p.nom_fic||p.nomfic||p.fichier||'';
+    const partition=p.partition||p.idurba||'';
+    if(fic){
+      // Le GPU expose les pièces écrites via son téléchargement direct
+      const url='https://www.geoportail-urbanisme.gouv.fr/document/download/'+encodeURIComponent(partition||'')+'/'+encodeURIComponent(fic);
+      h+='<a href="'+url+'" target="_blank" rel="noopener" style="display:inline-block;margin-top:5px;font-size:11px;color:#74b0d0;text-decoration:underline">📄 '+fic+'</a>';
+    } else if(p.nom_doc){
+      h+='<div style="font-size:10px;color:#8c97a4;margin-top:3px">'+p.nom_doc+'</div>';
+    }
+    return h;
+  }
+  async function cadHtml(lnglat){
+    // Requête par géométrie POINT (le filtre lon/lat simple renvoie une parcelle par défaut)
+    try{
+      const g=encodeURIComponent(JSON.stringify({type:'Point',coordinates:[lnglat.lng,lnglat.lat]}));
+      const r=await fetch('https://apicarto.ign.fr/api/cadastre/parcelle?geom='+g+'&_limit=1');
+      const j=await r.json();const p=j.features&&j.features[0]&&j.features[0].properties;
+      if(!p)return'';
+      const surf=p.contenance!=null?p.contenance:null;
+      return '<hr style="border:none;border-top:1px solid #2a323d;margin:7px 0">'
+        +'<div style="font-size:15px;font-weight:700;color:#74b0d0;font-family:monospace">'+(p.section||'')+(p.numero||'')+'</div>'
+        +(surf!=null?'<div style="font-size:13px">📏 <b>'+Math.round(surf)+' m²</b></div>':'')
+        +(p.nom_com?'<div style="font-size:11px;color:#8c97a4">'+p.nom_com+'</div>':'');
+    }catch(_){return'';}
+  }
+
+  /* ── PLU GeoJSON — coloré + clic ─────────────────────────────────── */
+  const pluLayer=L.geoJSON(null,{
+    pane:'geoOver',
+    style:f=>{
+      const p=f.properties||{};
+      const z=(p.libelle_zone||p.zone_urba||p.LIBELLE_ZONE||p.ZONE_URBA||p.typezone||'').trim();
+      return{fillColor:pluFill(z),fillOpacity:.45,color:'rgba(30,30,30,.45)',weight:1.2};
+    },
+    onEachFeature:(f,layer)=>{
+      const p=f.properties||{};
+      const z=(p.libelle_zone||p.zone_urba||p.LIBELLE_ZONE||p.typezone||'').trim();
+      layer.bindTooltip('<b>'+(z||'?')+'</b>'+(p.libelle?' — '+p.libelle:''),
+        {sticky:true,className:'plu-tip'});
+      layer.on('click',async function(e){
+        L.DomEvent.stopPropagation(e);
+        let html='<div>'+zoneHtml(p);
+        html+=await cadHtml(e.latlng);
+        html+='</div>';
+        L.popup({maxWidth:270}).setLatLng(e.latlng).setContent(html).openOn(_urbaMap);
+      });
+    }
+  }).addTo(_urbaMap);
+  fetch('https://apicarto.ign.fr/api/gpu/zone-urba?geom='+bboxGeom+'&_limit=80')
+    .then(r=>r.json()).then(j=>{
+      if(j.features&&j.features.length){
+        console.log('[PLU] props clé:',Object.keys(j.features[0].properties||{}).slice(0,10));
+        pluLayer.addData(j);
+      }
+    }).catch(e=>console.warn('[PLU]',e.message));
+
+  /* ── Cadastre GeoJSON via WFS IGN ────────────────────────────────── */
+  const cadLayer=L.geoJSON(null,{
+    pane:'geoOver',
+    style:{color:'rgba(255,255,255,.88)',weight:1.5,fillOpacity:0,fillColor:'#aaa'},
+    onEachFeature:(f,layer)=>{
+      layer.on('click',async function(e){
+        L.DomEvent.stopPropagation(e);
+        const p=f.properties||{};
+        const section=p.section||p.SECTION||p.prefixe||'';
+        const numero=p.numero||p.NUMERO||p.numeroparcelle||p.NUM||'—';
+        const surf=p.contenance!=null?p.contenance:(p.contenancedgfip!=null?p.contenancedgfip:null);
+        const commune=p.nom_com||p.commune||p.COMMUNE||p.nomcom||'';
+        let html='<div>'
+          +'<div style="font-size:18px;font-weight:700;color:#74b0d0;font-family:monospace">'+section+numero+'</div>'
+          +(surf!=null?'<div style="font-size:13px">📏 <b>'+Math.round(surf)+' m²</b></div>':'')
+          +(commune?'<div style="font-size:11px;color:#8c97a4">'+commune+'</div>':'')
+          +'<hr style="border:none;border-top:1px solid #2a323d;margin:7px 0">';
+        // Zone PLU au point cliqué (via géométrie point)
+        try{
+          const g=encodeURIComponent(JSON.stringify({type:'Point',coordinates:[e.latlng.lng,e.latlng.lat]}));
+          const r=await fetch('https://apicarto.ign.fr/api/gpu/zone-urba?geom='+g+'&_limit=1');
+          const j=await r.json();const z=(j.features&&j.features[0]&&j.features[0].properties)||null;
+          if(z)html+=zoneHtml(z);
+          else html+='<span style="color:#8c97a4;font-size:12px">Zone PLU non disponible</span>';
+        }catch(_){html+='<span style="color:#8c97a4;font-size:12px">Erreur réseau PLU</span>';}
+        html+='</div>';
+        L.popup({maxWidth:260}).setLatLng(e.latlng).setContent(html).openOn(_urbaMap);
+      });
+    }
+  }).addTo(_urbaMap);
+
+  // WFS IGN (primaire) puis API Carto (repli)
+  const wfsCad='https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature'
+    +'&TYPENAMES=CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle'
+    +'&OUTPUTFORMAT=application/json&COUNT=400&BBOX='+bboxCRS;
+  fetch(wfsCad).then(r=>r.json()).then(j=>{
+    if(j.features&&j.features.length){
+      console.log('[Cadastre WFS]',j.features.length,'parcelles — props:',Object.keys(j.features[0].properties||{}).slice(0,10));
+      cadLayer.addData(j);return;
+    }
+    throw new Error('0 features WFS');
+  }).catch(()=>{
+    fetch('https://apicarto.ign.fr/api/cadastre/parcelle?bbox='+bbox+'&_limit=300')
+      .then(r=>r.json()).then(j2=>{
+        if(j2.features&&j2.features.length){
+          console.log('[Cadastre API]',j2.features.length,'parcelles — props:',Object.keys(j2.features[0].properties||{}).slice(0,10));
+          cadLayer.addData(j2);
+        }
+      }).catch(e=>console.warn('[Cadastre API]',e.message));
+  });
+
+  _geoLayers={plu:pluLayer,cad:cadLayer,ppri:ppri,spr:sprL};
+
+  /* ── Sliders d'opacité ───────────────────────────────────────────── */
+  const opDiv=document.getElementById('urba-opacity');
+  if(opDiv)opDiv.innerHTML=
+    '<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;padding:8px 0">'
+    +'<span style="font-size:9.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)">Opacité</span>'
+    +'<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">🏘️ PLU '
+    +'<input type="range" min="0" max="1" step="0.05" value="0.45" style="width:70px"'
+    +' oninput="_geoLayers.plu&&_geoLayers.plu.setStyle({fillOpacity:+this.value})"></label>'
+    +'<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">📐 Fond cadastre '
+    +'<input type="range" min="0" max="0.6" step="0.05" value="0" style="width:70px"'
+    +' oninput="_geoLayers.cad&&_geoLayers.cad.setStyle({fillOpacity:+this.value})"></label>'
+    +'</div>';
+
+  /* ── Contrôle couches ────────────────────────────────────────────── */
+  L.control.layers(
+    {'📸 Ortho IGN':ortho,'🗺️ Plan IGN':plan,'🌍 OpenStreetMap':osm},
+    {'🏘️ Zonage PLU':pluLayer,'📐 Cadastre':cadLayer,'⚠️ PPR':ppri,'🏛️ SPR':sprL},
+    {collapsed:false}
+  ).addTo(_urbaMap);
+
+  /* ── Marqueur projet ─────────────────────────────────────────────── */
+  L.circleMarker([lat,lon],{radius:9,fillColor:'#ff5d4d',color:'#fff',
+    weight:2.5,opacity:1,fillOpacity:.95})
+    .addTo(_urbaMap).bindPopup('<b>📍 Site du projet</b>').openPopup();
+
+  setTimeout(()=>_urbaMap.invalidateSize(),200);
+}
+
+$('btnAnalyse').onclick=analyse;
+$('addr').addEventListener('keydown',e=>{if(e.key==='Enter')analyse();});
+window.addEventListener('load',()=>{
+  const ls=localStorage.getItem('helio_addr');
+  if(ls&&ls.trim())$('addr').value=ls;
+  setTimeout(analyse,300);
+});
+</script>
+</body>
+</html>
