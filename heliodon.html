@@ -380,7 +380,7 @@ function clearNature(){
 /* 7b. CADASTRE (lignes WFS — depthTest:false pour visibilité garantie) */
 async function fetchAndAddCadastre(){
   if(cadastreLoaded)return;
-  if(!siteLat){setStatus('Charger d'abord une adresse','err');return;}
+  if(!siteLat){setStatus("Charger d'abord une adresse",'err');return;}
   const dLat=SCENE_R/111320,dLon=SCENE_R/(111320*Math.cos(siteLat*RAD));
   const bbox=(siteLon-dLon)+','+(siteLat-dLat)+','+(siteLon+dLon)+','+(siteLat+dLat);
   const url='https://apicarto.ign.fr/api/cadastre/parcelle?bbox='+bbox+'&_limit=400';
